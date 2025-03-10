@@ -1,0 +1,38 @@
+{
+  "\\b(login\\s*failed|authentication\\s*failure)\\b": {
+    "description": "Multiple failed login attempts",
+    "severity": "low"
+  },
+  "\\b(permission\\s*denied)\\b": {
+    "description": "Unauthorized access attempt",
+    "severity": "medium"
+  },
+  "\\b(exception|error|fatal)\\b": {
+    "description": "System error detected",
+    "severity": "medium"
+  },
+  "\\b(invalid\\s*token|expired\\s*token)\\b": {
+    "description": "Authentication token issue",
+    "severity": "medium"
+  },
+  "\\b(sql\\s*injection|drop\\s*table|union\\s*select)\\b": {
+    "description": "Possible SQL injection attempt",
+    "severity": "critical"
+  },
+  "\\b(bruteforce|brute\\s*force)\\b": {
+    "description": "Possible brute-force attack",
+    "severity": "high"
+  },
+  "\\b(security\\s*breach|hack|unauthorized)\\b": {
+    "description": "Potential security breach",
+    "severity": "high"
+  },
+  "\\bSECURITY_VIOLATION\\b": {
+    "description": "Security violation from integrity check",
+    "severity": "critical"
+  },
+  "\\bintegrity\\s*issue\\b": {
+    "description": "Log integrity issue detected",
+    "severity": "high"
+  }
+}
