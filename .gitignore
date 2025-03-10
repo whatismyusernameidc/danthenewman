@@ -58,3 +58,5 @@ docker-compose.override.yml
 .env
 .terraform/
 vault/vault.zip
+vault/vault.zip
+vault/secrets/
