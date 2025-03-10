@@ -1,13 +1,13 @@
 # 1. Ignore Secrets & Sensitive Files
 app/config/secrets.env
 vault/secrets/
-vault/secrets.env
-*.json
+vault/secrets/*.json
 !app/config/patterns.json  # Exception for required config file
 
 # 2. Ignore Python Cache & Compiled Files
 __pycache__/
 *.py[cod]
+*.pyd
 *$py.class
 
 # 3. Ignore Virtual Environment
@@ -16,19 +16,17 @@ venv/
 dan-env/
 
 # 4. Ignore Logs & Monitoring Outputs
-app/logs/system/*.log
-app/logs/audit/*.log
-app/logs/errors/*.log
-app/logs/telemetry/*.log  # Added for completeness
-app/monitoring/output/    # If you plan to output monitoring data here
+app/logs/**/*.log
+app/monitoring/output/  # Monitoring outputs, if applicable
 
 # 5. Ignore Build & Dependency Files
 .Python
 build/
 dist/
+site-packages/
 *.egg-info/
 .installed.cfg
-*.egg
+wheels/
 
 # 6. Ignore Unit Test & Coverage Reports
 .tox/
@@ -46,6 +44,7 @@ tests/__pycache__/
 # 7. Ignore IDE & Editor Files
 .vscode/
 .idea/
+.idea/modules.xml
 *.sublime-workspace
 
 # 8. Ignore OS-Specific Files
@@ -54,6 +53,7 @@ Thumbs.db
 
 # 9. Ignore Deployment & Containerization Files
 deployment/*.sh
-deployment/systemd/*
+deployment/systemd/*.service
 docker-compose.override.yml
 .env
+.terraform/
