@@ -1,0 +1,5 @@
+2025-03-08 16:21:01.352 | WARNING  | __main__:main:18 - Processing your request...
+2025-03-08 16:21:01.354 | INFO     | app.agent.base:run:137 - Executing step 1/30
+2025-03-08 16:21:01.606 | ERROR    | app.llm:ask_tool:256 - Authentication failed. Check API key.
+2025-03-08 16:21:02.749 | ERROR    | app.llm:ask_tool:256 - Authentication failed. Check API key.
+2025-03-08 16:21:40.830 | ERROR    | app.llm:ask_tool:258 - Rate limit exceeded. Consider increasing retry attempts.

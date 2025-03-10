@@ -1,0 +1,70 @@
+vault:
+  enabled: true
+  address: "http://127.0.0.1:8200"  # Local development Vault URL
+  secrets:
+    openai: "secretv2/data/openai"
+    smtp: "secretv2/data/smtp"
+    notifications: "secretv2/data/notifications"
+    security: "secretv2/data/security"
+
+model:
+  name: "gpt-4o"
+  provider: "openai"
+  vault_api_key: "secretv2/data/openai"
+  max_tokens: 4096
+  temperature: 0.5
+  top_p: 0.9
+  frequency_penalty: 0.2
+  presence_penalty: 0.3
+  cache_responses: true
+  retry_attempts: 3
+
+logging:
+  level: "info"
+  log_file: "logs/manus.log"      # Updated path
+  audit_log: "logs/audit.log"     # Updated path
+  patterns_file: "config/patterns.json"  # Updated path
+  max_log_size: 10  # MB, for log rotation
+  backup_count: 5   # Number of rotated log backups
+
+agent_settings:
+  max_tokens: 1000
+  temperature: 0.7
+
+security:
+  vault_failure_mode: "fail"  # Stops execution if Vault is unavailable
+  vault_path: "secretv2/data/security"
+  password: null              # Use Vault for secure handling
+  blocked_patterns: ["rm -rf", "shutdown", "format", "delete", "sudo", "chmod"]
+  allowed_pattern: "^[a-zA-Z0-9\\s.,!?]+$"
+  enforce_strict_validation: true
+  max_input_length: 1000
+
+smtp:
+  use_vault: true
+  vault_path: "secretv2/data/smtp"
+  fallback:
+    enabled: true
+    server: "smtp.development.com"
+    port: 587
+    use_tls: true
+    username: null
+    password: null
+    from_email: "dev_alerts@yourdomain.com"
+  disable_on_vault_failure: true
+
+notifications:
+  use_vault: true
+  vault_path: "secretv2/data/notifications"
+  email: "notify@yourdomain.com"
+  fallback_email: "backup@yourdomain.com"
+  disable_on_vault_failure: true
+
+system:
+  low_power_mode: false
+  compressible_weights: true
+  allow_background_tasks: true
+
+telemetry:
+  enabled: false
+  log_file: "logs/telemetry.log"  # Updated path
