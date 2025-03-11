@@ -7,23 +7,29 @@ vault:
     notifications: "secretv2/data/notifications"
     security: "secretv2/data/security"
 
-model:
-  name: "gpt-4o"
-  provider: "openai"
-  vault_api_key: "secretv2/data/openai"
-  max_tokens: 4096
-  temperature: 0.5
-  top_p: 0.9
-  frequency_penalty: 0.2
-  presence_penalty: 0.3
-  cache_responses: true
-  retry_attempts: 3
+llm:
+  use_openai_api: false
+  openai:
+    model: "gpt-4o"
+    vault_api_key: "secretv2/data/openai"
+    temperature: 0.5
+    max_tokens: 4096
+    top_p: 0.9
+    frequency_penalty: 0.2
+    presence_penalty: 0.3
+    cache_responses: true
+    retry_attempts: 3
+  mistral:
+    model: "mistral-7b"
+    max_tokens: 1024
+    temperature: 0.7
 
 logging:
   level: "info"
-  log_file: "logs/manus.log"      # Updated path
-  audit_log: "logs/audit.log"     # Updated path
-  patterns_file: "config/patterns.json"  # Updated path
+  log_file: "app/logs/system/manus.log"    # System log - already correct
+  audit_log: "app/logs/audit/audit.log"    # Audit log - already correct
+  patterns_file: "app/config/patterns.json"  # Patterns file - already correct
+  monitor_log: "app/logs/system/monitor.log"  # Added per feedback
   max_log_size: 10  # MB, for log rotation
   backup_count: 5   # Number of rotated log backups
 
@@ -48,8 +54,8 @@ smtp:
     server: "smtp.development.com"
     port: 587
     use_tls: true
-    username: null
-    password: null
+    username: null  # Update with your username if using fallback
+    password: null  # Update with your password if using fallback
     from_email: "dev_alerts@yourdomain.com"
   disable_on_vault_failure: true
 
@@ -67,4 +73,7 @@ system:
 
 telemetry:
   enabled: false
-  log_file: "logs/telemetry.log"  # Updated path
+  log_file: "app/logs/system/telemetry.log"  # Telemetry log - already correct
+
+metrics_port: 8000
+heartbeat_file: "app/logs/heartbeat.json"  # Heartbeat file - already correct

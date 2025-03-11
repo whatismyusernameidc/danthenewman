@@ -2,22 +2,32 @@
 app/config/secrets.env
 vault/secrets/
 vault/secrets/*.json
-!app/config/patterns.json  # Exception for required config file
+app/security/secrets/*.json
+.env
+
+# (Optional) Ignore large model binaries under config/models, but keep small config files
+app/config/models/*
+!app/config/models/config.json
+!app/config/patterns.json
 
 # 2. Ignore Python Cache & Compiled Files
-__pycache__/
+**/__pycache__/
 *.py[cod]
 *.pyd
 *$py.class
 
-# 3. Ignore Virtual Environment
+# 3. Ignore Virtual Environments
 venv/
 .venv/
 dan-env/
 
 # 4. Ignore Logs & Monitoring Outputs
+app/logs/*
+!app/logs/.gitkeep  # (Keep a placeholder file to preserve folder structure)
 app/logs/**/*.log
-app/monitoring/output/  # Monitoring outputs, if applicable
+*.log
+*.csv
+*.tmp
 
 # 5. Ignore Build & Dependency Files
 .Python
@@ -37,7 +47,7 @@ wheels/
 nosetests.xml
 coverage.xml
 *.cover
-*.py,cover.hypothesis/
+.hypothesis/
 .pytest_cache/
 tests/__pycache__/
 
@@ -50,13 +60,20 @@ tests/__pycache__/
 # 8. Ignore OS-Specific Files
 .DS_Store
 Thumbs.db
+.fseventsd
+.Trashes
+*.swp
+*.swo
+*.swn
 
 # 9. Ignore Deployment & Containerization Files
 deployment/*.sh
 deployment/systemd/*.service
 docker-compose.override.yml
-.env
 .terraform/
 vault/vault.zip
-vault/vault.zip
-vault/secrets/
+deployment/*.tar
+deployment/*.img
+deployment/.cache
+Dockerfile~
+

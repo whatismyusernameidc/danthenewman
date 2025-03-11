@@ -11,16 +11,7 @@ from pathlib import Path
 from threading import Thread
 from typing import Dict, List, Any, Union, Callable, Optional
 
-# Third-party imports (moved watchdog import here per Step 7)
-try:
-    from watchdog.observers import Observer
-    from watchdog.events import FileSystemEventHandler
-    WATCHDOG_AVAILABLE = True
-except ImportError:
-    WATCHDOG_AVAILABLE = False
-    logger.warning("watchdog library not found. Install with: pip install watchdog for real-time monitoring.")
-
-# Local imports (organized per Step 7)
+# Local imports (moved here to ensure logger is defined before use)
 from utils import (
     logger,
     ManusSecurityError,
@@ -32,6 +23,14 @@ from utils import (
     secure_directory_permissions,
 )
 
+# Third-party imports (watchdog import with fallback)
+try:
+    from watchdog.observers import Observer
+    from watchdog.events import FileSystemEventHandler
+    WATCHDOG_AVAILABLE = True
+except ImportError:
+    WATCHDOG_AVAILABLE = False
+    logger.warning("watchdog library not found. Install with: pip install watchdog for real-time monitoring.")
 
 class LogFileHandler(FileSystemEventHandler):
     """Watchdog event handler for log file changes."""
@@ -54,7 +53,6 @@ class LogFileHandler(FileSystemEventHandler):
         """
         if not event.is_directory:
             self.process_callback()
-
 
 class LogProcessor:
     """Handles real-time log file processing using watchdog or polling."""
@@ -90,11 +88,11 @@ class LogProcessor:
         self.running = False
         self.observer = None
         
-        # Secure log file permissions using centralized utilities (Step 4)
+        # Secure log file permissions using centralized utilities
         self._secure_log_files()
     
     def _secure_log_files(self) -> None:
-        """Create log files with secure permissions using utility functions from utils.py (Step 4)."""
+        """Create log files with secure permissions using utility functions from utils.py."""
         try:
             if os.name == 'posix':
                 log_dir = self.log_file.parent
@@ -118,7 +116,7 @@ class LogProcessor:
         logger.info(f"Starting log processor for {self.log_file}")
         self.running = True
         
-        if WATCHDOG_AVAILABLE and self.config.get('use_watchdog', True):  # Updated per Step 3
+        if WATCHDOG_AVAILABLE and self.config.get('use_watchdog', True):
             self._start_watchdog_monitoring()
         else:
             self._start_polling()
@@ -170,21 +168,23 @@ class LogProcessor:
             time.sleep(self.current_check_interval)
     
     def process_new_logs(self) -> None:
-        """Process new log entries and invoke callback for real-time alerts (refactored per Step 5)."""
+        """Process new log entries and invoke callback for real-time alerts."""
         try:
             if not self.log_file.exists():
                 self.alerts = []
+                logger.warning(f"Log file {self.log_file} does not exist")
                 return
-            self._handle_log_rotation()  # Split out rotation logic
-            lines = self._read_new_lines()  # Split out line reading
+            self._handle_log_rotation()
+            lines = self._read_new_lines()
+            logger.debug(f"Read {len(lines)} new lines: {lines}")
             if lines:
-                self._process_alerts(lines)  # Split out alert processing
+                self._process_alerts(lines)
         except Exception as e:
             logger.error(f"Error processing logs: {str(e)}")
-            raise ManusSecurityError(f"Log processing failed: {str(e)}") from e  # Consistent error handling (Step 6)
-    
+            raise ManusSecurityError(f"Log processing failed: {str(e)}") from e
+
     def _handle_log_rotation(self) -> None:
-        """Handle log rotation and truncation scenarios (Step 5)."""
+        """Handle log rotation and truncation scenarios."""
         current_inode = os.stat(self.log_file).st_ino
         current_mtime = os.stat(self.log_file).st_mtime
         file_size = os.path.getsize(self.log_file)
@@ -202,7 +202,7 @@ class LogProcessor:
         self.last_mtime = current_mtime
     
     def _read_new_lines(self) -> List[str]:
-        """Read new lines from the log file since the last position (Step 5)."""
+        """Read new lines from the log file since the last position."""
         with open(self.log_file, 'r') as f:
             f.seek(self.position)
             new_lines = []
@@ -221,12 +221,12 @@ class LogProcessor:
         return new_lines
     
     def _process_alerts(self, lines: List[str]) -> None:
-        """Process new log lines for alerts and invoke callback if provided (Step 5)."""
+        """Process new log lines for alerts and invoke callback if provided."""
         new_alerts = self.matcher.scan_lines(lines)
         if new_alerts:
-            self.alerts = new_alerts  # Update internal state
+            self.alerts = new_alerts
             if self.alert_callback:
-                self.alert_callback(new_alerts)  # Real-time alert handling
+                self.alert_callback(new_alerts)
     
     def _adjust_check_interval(self, activity_detected: bool) -> None:
         """Adjust polling interval based on log activity."""
@@ -278,7 +278,6 @@ class LogProcessor:
             except Exception as e:
                 logger.warning(f"Failed to read rotated log {log_file}: {str(e)}")
 
-
 class PatternMatcher:
     """Handles pattern compilation and matching."""
     
@@ -312,23 +311,17 @@ class PatternMatcher:
     def scan_lines(self, lines: List[str]) -> List[Dict[str, Any]]:
         """
         Scan lines for suspicious patterns and return alerts.
-        
-        Args:
-            lines: List of log lines to scan
-            
-        Returns:
-            List of alert dictionaries
         """
         from datetime import datetime
         alerts = []
         
         for line in lines:
+            logger.debug(f"Scanning line: {line.strip()}")
             for pattern, alert_info in self.compiled_patterns.items():
                 try:
                     if pattern.search(line):
-                        logger.debug(f"Match found: {pattern.pattern}")
+                        logger.info(f"Match found: {pattern.pattern} in line: {line.strip()}")
                         PATTERN_MATCHES.labels(pattern=pattern.pattern).inc()
-                        
                         severity = alert_info.get("severity", "medium")
                         description = alert_info.get("description", alert_info)
                         
@@ -343,28 +336,8 @@ class PatternMatcher:
                         alerts.append(log_entry)
                         ALERTS_TRIGGERED.inc()
                         ALERTS_BY_SEVERITY.labels(severity=severity).inc()
+                    else:
+                        logger.debug(f"No match for pattern {pattern.pattern} in line: {line.strip()}")
                 except Exception as e:
                     logger.error(f"Error matching pattern '{pattern.pattern}': {str(e)}")
-        
         return alerts
-
-
-def process_logs(log_file: str, patterns: Dict[str, Union[str, Dict[str, str]]], config: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """
-    Process the log file and return initial alerts (for testing or legacy use).
-    Uses watchdog for real-time monitoring if available and enabled.
-    
-    Args:
-        log_file: Path to the log file
-        patterns: Dictionary of patterns and their metadata
-        config: Configuration dictionary
-        
-    Returns:
-        List of initial alert dictionaries
-    """
-    processor = LogProcessor(log_file, patterns, config)
-    processor.start()
-    time.sleep(0.1)  # Brief wait for initial alerts
-    alerts = processor.alerts.copy()
-    processor.stop()  # Stop immediately as this is a one-shot call
-    return alerts

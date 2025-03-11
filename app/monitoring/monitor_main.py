@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 """
 Manus AI Log Monitor
 Real-time monitoring system for Manus AI logs that detects suspicious activity
@@ -33,66 +34,72 @@ from utils import (
 from log_processor import LogProcessor  # Import LogProcessor directly
 from alerters import AlertManager  # Import AlertManager
 
+from monitoring.health_check import start_health_http_server
 
-class HealthCheckHandler(http.server.BaseHTTPRequestHandler):
-    """HTTP handler for health check endpoint."""
-    
+class HealthCheckHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, monitor=None, **kwargs):
         self.monitor = monitor
         super().__init__(*args, **kwargs)
     
     def do_GET(self):
-        """Handle GET requests."""
-        if self.path == '/health':
-            if self.monitor and self.monitor.is_healthy():
-                self.send_response(200)
-                self.send_header('Content-type', 'application/json')
-                self.end_headers()
-                health_data = {
-                    'status': 'healthy',
-                    'uptime': self.monitor.get_uptime(),
-                    'stats': self.monitor.get_health_stats()
-                }
-                self.wfile.write(json.dumps(health_data).encode())
-            else:
-                self.send_response(503)
-                self.send_header('Content-type', 'application/json')
-                self.end_headers()
-                health_data = {
-                    'status': 'unhealthy',
-                    'reason': 'Monitor is not running or in an error state'
-                }
-                self.wfile.write(json.dumps(health_data).encode())
-                HEALTH_CHECK_FAILURES.inc()
-        else:
-            self.send_response(404)
+        if self.path == "/health":
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
             self.end_headers()
+            if self.monitor:
+                # Return detailed health info if monitor is provided
+                if self.monitor.is_healthy():
+                    health_data = {
+                        "status": "healthy",
+                        "uptime": self.monitor.get_uptime(),
+                        "stats": self.monitor.get_health_stats()
+                    }
+                else:
+                    health_data = {
+                        "status": "unhealthy",
+                        "reason": "Monitor is not running or in an error state"
+                    }
+            else:
+                # Fallback simple healthy status
+                health_data = {"status": "healthy"}
+            self.wfile.write(json.dumps(health_data).encode())
+        else:
+            self.send_error(404)
     
     def log_message(self, format, *args):
-        """Override to use our logger instead of stderr."""
         logger.debug(f"Health check: {format % args}")
 
+def start_health_http_server(port: int = 8080, monitor: object = None) -> None:
+    """
+    Start an HTTP server for health checks on the specified port.
+    Args:
+        port: Port number for the health check server.
+        monitor: Optional monitor instance for detailed health reporting.
+    """
+    # Use a lambda to pass the monitor to the handler
+    handler = lambda *args, **kwargs: HealthCheckHandler(*args, monitor=monitor, **kwargs)
+    with socketserver.TCPServer(("0.0.0.0", port), handler) as httpd:
+        print(f"Serving health check on port {port}")
+        httpd.serve_forever()
 
 class MonitorHealthChecker:
     """Monitors the health of the log monitor."""
-    
     def __init__(self, config: Dict[str, Any], monitor: 'LogMonitor'):
         """
         Initialize the health checker.
-        
         Args:
             config: Configuration dictionary
             monitor: LogMonitor instance
         """
         self.config = config
         self.monitor = monitor
-        self.heartbeat_file = config.get('heartbeat_file', 'heartbeat.json')
+        # Updated default to match project structure
+        self.heartbeat_file = config.get('heartbeat_file', 'app/logs/heartbeat.json')
         self.heartbeat_interval = config.get('heartbeat_interval', 60)
         self.last_heartbeat = 0
         self.running = False
         self.health_check_port = config.get('health_check_port', 8080)
         self.http_server = None
-        
         # Initialize heartbeat file with secure permissions
         self._write_heartbeat(init=True)
     
@@ -100,12 +107,9 @@ class MonitorHealthChecker:
         """Start health checking."""
         if self.running:
             return
-        
         self.running = True
-        
         # Start heartbeat thread
         Thread(target=self._heartbeat_loop, daemon=True).start()
-        
         # Start HTTP health check server if enabled
         if self.health_check_port:
             self._start_http_server()
@@ -115,6 +119,21 @@ class MonitorHealthChecker:
         self.running = False
         if self.http_server:
             self.http_server.shutdown()
+            self.http_server.server_close()
+    
+    def _start_http_server(self) -> None:
+        """Start the HTTP server for health checks."""
+        try:
+            # Define a handler factory that passes the monitor instance
+            def handler(*args, **kwargs):
+                return HealthCheckHandler(*args, monitor=self.monitor, **kwargs)
+            # Create and start the HTTP server
+            self.http_server = socketserver.TCPServer(("", self.health_check_port), handler)
+            logger.info(f"Health check server started on port {self.health_check_port}")
+            Thread(target=self.http_server.serve_forever, daemon=True).start()
+        except Exception as e:
+            logger.error(f"Failed to start health check server: {str(e)}")
+            raise
     
     def _heartbeat_loop(self) -> None:
         """Periodically write heartbeat to file."""
@@ -131,7 +150,6 @@ class MonitorHealthChecker:
     def _write_heartbeat(self, init: bool = False) -> None:
         """
         Write heartbeat information to file.
-        
         Args:
             init: Whether this is the initial write (just creating the file)
         """
@@ -159,14 +177,11 @@ class MonitorHealthChecker:
         except Exception as e:
             logger.error(f"Failed to write heartbeat: {str(e)}")
 
-
 class LogMonitor:
     """Main log monitoring system."""
-    
     def __init__(self, config_path: Optional[str] = None):
         """
         Initialize the log monitor.
-        
         Args:
             config_path: Path to configuration file (optional)
         """
@@ -175,30 +190,24 @@ class LogMonitor:
         self.config_manager = ConfigManager(config_path or "app/config/config.yaml")
         self.config = self.config_manager.load_config()
         authenticate(self.config)
-        
         # Initialize AlertManager
         self.alert_manager = AlertManager(self.config)
-        
         # Load patterns (assumes a load_patterns function exists in utils)
         from utils import load_patterns
         self.patterns = load_patterns(self.config.get('patterns_file', 'app/config/patterns.json'))
-        
         # Health checking
         self.health_checker = MonitorHealthChecker(self.config, self)
         self.running = False
         self.stats = {'alerts_processed': 0}
-        
         # Metrics server using centralized function
         self.metrics_port = None if self.config.get('no_metrics') else self.config.get('metrics_port', 8000)
         if self.metrics_port:
             initialize_metrics(self.metrics_port)
-        
         self._setup_signal_handlers()
     
     def handle_alerts(self, alerts: List[Dict[str, Any]]) -> None:
         """
         Handle new alerts by queuing them to AlertManager based on severity.
-        
         Args:
             alerts: List of alert dictionaries
         """
@@ -215,16 +224,13 @@ class LogMonitor:
         if self.running:
             logger.warning("Monitor already running")
             return
-        
         logger.info("Starting Manus AI Log Monitor")
         self.running = True
         self.health_checker.start()
-        
         log_file = (self.config.get('log_file') or 
                     self.config.get('logging', {}).get('audit_log') or 
                     "app/logs/audit.log")
         logger.info(f"Monitoring log file: {log_file} with watchdog (if available)")
-        
         # Initialize LogProcessor with callback for real-time alerting
         self.log_processor = LogProcessor(
             log_file=log_file,
@@ -233,7 +239,6 @@ class LogMonitor:
             alert_callback=self.handle_alerts
         )
         self.log_processor.start()
-        
         try:
             while self.running:
                 time.sleep(1)  # Main thread waits, watchdog handles events
@@ -246,7 +251,6 @@ class LogMonitor:
         """Stop the log monitor."""
         if not self.running:
             return
-        
         logger.info("Stopping Manus AI Log Monitor")
         self.running = False
         if hasattr(self, 'log_processor'):
@@ -263,7 +267,6 @@ class LogMonitor:
     def _handle_signal(self, signum: int, frame) -> None:
         """
         Handle received signals.
-        
         Args:
             signum: Signal number
             frame: Current stack frame
@@ -297,7 +300,6 @@ class LogMonitor:
             'log_file': self.config.get('log_file', 'app/logs/audit.log')
         }
 
-
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description='Manus AI Log Monitor')
@@ -307,21 +309,21 @@ def parse_args() -> argparse.Namespace:
                         help='Path to the log file to monitor (overrides config)')
     return parser.parse_args()
 
-
 def main() -> int:
     """
     Main entry point.
-    
     Returns:
         Exit code
     """
     args = parse_args()
     config_path = args.config or "app/config/config.yaml"
     monitor = LogMonitor(config_path)
-    
     if args.log_file:
         logger.info(f"Overriding log file with {args.log_file}")
         monitor.config['log_file'] = args.log_file
+    
+    health_check_port = monitor.config.get('health_check_port', 8080) 
+    Thread(target=start_health_http_server, args=(health_check_port, monitor), daemon=True).start()
     
     try:
         monitor.start()
@@ -335,7 +337,6 @@ def main() -> int:
     except Exception as e:
         logger.error(f"Unexpected error: {str(e)}")
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

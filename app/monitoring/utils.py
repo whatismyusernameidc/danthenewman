@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 """
 Utility module for Manus AI Log Monitor.
 Contains shared functions, classes, and constants.
@@ -10,6 +11,7 @@ import re
 import yaml
 import time
 import logging
+import json
 from pathlib import Path
 from threading import Lock
 from typing import Dict, List, Any, Optional, Tuple, Callable
@@ -26,7 +28,7 @@ logging.basicConfig(
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler('monitor.log')
+        logging.FileHandler('app/logs/system/monitor.log')  # Fixed path
     ]
 )
 logger = logging.getLogger('manus_monitor')
@@ -185,9 +187,9 @@ def ensure_config_exists(config_path: str) -> bool:
             },
             "logging": {
                 "level": "info",
-                "log_file": "manus_ai/logs/manus.log",
-                "audit_log": "manus_ai/logs/audit.log",
-                "patterns_file": "manus_ai/config/patterns.json",
+                "log_file": "app/logs/system/manus.log",  # Fixed path
+                "audit_log": "app/logs/audit/audit.log",  # Fixed path
+                "patterns_file": "app/config/patterns.json",  # Fixed path
                 "max_log_size": 10,
                 "backup_count": 5
             },
@@ -230,7 +232,7 @@ def ensure_config_exists(config_path: str) -> bool:
             "use_watchdog": True,
             "metrics_port": 8000,
             "health_check_port": 8080,
-            "heartbeat_file": "heartbeat.json",
+            "heartbeat_file": "app/logs/heartbeat.json",  # Fixed path
             "heartbeat_interval": 60,
             "alerters": {
                 "email": True,
@@ -250,7 +252,7 @@ def ensure_config_exists(config_path: str) -> bool:
             },
             "telemetry": {
                 "enabled": False,
-                "log_file": "manus_ai/logs/telemetry.log"
+                "log_file": "app/logs/system/telemetry.log"  # Fixed path
             }
         }
         try:
@@ -366,6 +368,35 @@ def validate_input(prompt: str, config: Dict[str, Any]) -> Tuple[bool, str]:
         return False, "Blocked pattern detected in input"
     return True, sanitized_prompt
 
+def load_patterns(patterns_file: str) -> Dict[str, str]:
+    """
+    Load patterns from a JSON file.
+
+    Args:
+        patterns_file: Path to the patterns JSON file
+
+    Returns:
+        Dict[str, str]: Dictionary of patterns where keys are pattern names and values are regex patterns
+
+    Raises:
+        ManusConfigError: If the file is missing, contains invalid JSON, or doesn't contain a dictionary
+    """
+    try:
+        with open(patterns_file, 'r') as f:
+            patterns = json.load(f)
+        if not isinstance(patterns, dict):
+            raise ValueError("Patterns file must contain a dictionary")
+        return patterns
+    except FileNotFoundError:
+        logger.error(f"Patterns file not found: {patterns_file}")
+        raise ManusConfigError(f"Patterns file not found: {patterns_file}")
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON in patterns file: {str(e)}")
+        raise ManusConfigError(f"Invalid JSON in patterns file: {str(e)}")
+    except Exception as e:
+        logger.error(f"Error loading patterns: {str(e)}")
+        raise ManusConfigError(f"Error loading patterns: {str(e)}")
+
 ### Configuration Classes
 class ConfigValidator:
     """Validates the monitor configuration."""
@@ -430,9 +461,9 @@ class ConfigManager:
     def _get_default_config(self) -> Dict[str, Any]:
         """Return default configuration."""
         return {
-            'log_file': None,
+            'log_file': 'app/logs/audit/audit.log',  # Fixed default path
             'email': None,
-            'patterns_file': 'patterns.json',
+            'patterns_file': 'app/config/patterns.json',  # Fixed path
             'check_interval': 10,
             'throttle_minutes': 15,
             'dry_run': False,
@@ -462,7 +493,7 @@ class ConfigManager:
                     'service_id': ''
                 }
             },
-            'heartbeat_file': 'heartbeat.json',
+            'heartbeat_file': 'app/logs/heartbeat.json',  # Fixed path
             'heartbeat_interval': 60
         }
 
